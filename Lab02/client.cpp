@@ -34,18 +34,61 @@ struct Drone {
     } Drone_target;
 };
 
+bool isFloat(const std::string& s) {
+    try {
+        std::stof(s);
+    } catch (std::invalid_argument&) {
+        return false;
+    } catch (std::out_of_range&) {
+        return false;
+    }
+    return true;
+}
+
+bool isInt(const std::string& s) {
+    try {
+        std::stoi(s);
+    } catch (std::invalid_argument&) {
+        return false;
+    } catch (std::out_of_range&) {
+        return false;
+    }
+    return true;
+}
+
 int main(int argc, char **argv)
 {
     int s, bytes;
     char buf[BUFSIZE]; 
     struct hostent *h;
     struct sockaddr_in channel;
-    struct Drone drone = {1, {100, 200, 50}, {0, 0, 0}, {0, 0, 0}};
 
-    if (argc != 2) {printf("Usage: client server-name"); exit(-1);}
+    if (argc != 6) {
+        fprintf(stderr, "Usage: %s host id x_coordinate y_coordinate z_coordinate\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
     
     h = gethostbyname(argv[1]);
     if (!h) {printf("gethostbyname failed to locate %s", argv[1]); exit(-1);}
+
+    if (!isInt(argv[2])) {
+        fprintf(stderr, "Error: Argument %d is not a valid int value.\n", 2);
+        exit(EXIT_FAILURE);
+    }
+
+    for(int i = 3; i < argc; ++i) {
+        if (!isFloat(argv[i])) {
+            fprintf(stderr, "Error: Argument %d is not a valid float value.\n", i);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    int id  = atoi(argv[2]);
+    float x = atof(argv[3]);
+    float y = atof(argv[4]);
+    float z = atof(argv[5]);
+
+    struct Drone drone = {id, {x, y, z}, {0, 0, 0}, {0, 0, 0}};
     
     s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (s <0) {printf("socket call failed"); exit(-1);}
@@ -86,6 +129,12 @@ int main(int argc, char **argv)
                 printf("recv call failed");
                 exit(-1);
             }
+            if (strstr(buf, "send_disconnect")) {
+                printf("Server Request: %s\n", buf);
+                printf("Closing connection\n");
+                close(s);
+                return 0;
+            }
             printf("Target: (%s)\n", buf);
             sscanf(buf, "%f, %f, %f", &drone.Drone_target.x_coordinate, &drone.Drone_target.y_coordinate, &drone.Drone_target.z_coordinate);
 
@@ -95,9 +144,9 @@ int main(int argc, char **argv)
 
             float module = sqrt(pow(drone.Drone_speed.x_coordinate, 2) + pow(drone.Drone_speed.y_coordinate, 2) + pow(drone.Drone_speed.z_coordinate, 2));
 
-            drone.Drone_speed.x_coordinate = 2 * drone.Drone_speed.x_coordinate / module;
-            drone.Drone_speed.y_coordinate = 2 * drone.Drone_speed.y_coordinate / module;
-            drone.Drone_speed.z_coordinate = 2 * drone.Drone_speed.z_coordinate / module;
+            drone.Drone_speed.x_coordinate = 5 * drone.Drone_speed.x_coordinate / module;
+            drone.Drone_speed.y_coordinate = 5 * drone.Drone_speed.y_coordinate / module;
+            drone.Drone_speed.z_coordinate = 5 * drone.Drone_speed.z_coordinate / module;
         }
         
         if (strcmp(buf, "send_info") == 0) {
@@ -122,16 +171,16 @@ int main(int argc, char **argv)
 
             int module = sqrt(pow(drone.Drone_speed.x_coordinate, 2) + pow(drone.Drone_speed.y_coordinate, 2) + pow(drone.Drone_speed.z_coordinate, 2));
 
-            drone.Drone_speed.x_coordinate = 2 * drone.Drone_speed.x_coordinate / module;
-            drone.Drone_speed.y_coordinate = 2 * drone.Drone_speed.y_coordinate / module;
-            drone.Drone_speed.z_coordinate = 2 * drone.Drone_speed.z_coordinate / module;
+            drone.Drone_speed.x_coordinate = 5 * drone.Drone_speed.x_coordinate / module;
+            drone.Drone_speed.y_coordinate = 5 * drone.Drone_speed.y_coordinate / module;
+            drone.Drone_speed.z_coordinate = 5 * drone.Drone_speed.z_coordinate / module;
 
             sprintf(buf, "ACK");
             send(s, buf, strlen(buf) + 1, 0);
         }
 
         if (strstr(buf, "send_disconnect")) {
-            sprintf(buf, "ACK");
+            printf("Target achieved.\n");
             break;
         }
 

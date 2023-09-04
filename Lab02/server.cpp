@@ -39,11 +39,39 @@ struct Drone {
     } Drone_speed;
 };
 
+bool isFloat(const std::string& s) {
+    try {
+        std::stof(s);
+    } catch (std::invalid_argument&) {
+        return false;
+    } catch (std::out_of_range&) {
+        return false;
+    }
+    return true;
+}
+
 int main(int argc, char *argv[]) {
     int s, b, l, sa, bytes, on = 1;
     char buf[BUF_SIZE];
     struct sockaddr_in channel;
-    struct Target target = {250, 300, 50};
+
+    if (argc != 4) {
+        fprintf(stderr, "Usage: %s x_coordinate y_coordinate z_coordinate\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    for(int i = 1; i < argc; ++i) {
+        if (!isFloat(argv[i])) {
+            fprintf(stderr, "Error: Argument %d is not a valid float value.\n", i);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    float x = atof(argv[1]);
+    float y = atof(argv[2]);
+    float z = atof(argv[3]);
+
+    struct Target target = { { x, y, z } };
     struct Drone drone = {0, {0, 0, 0}, {0, 0, 0}};
 
     std::vector<std::string> authorized_ids = {"1", "2", "31"};
@@ -117,7 +145,7 @@ int main(int argc, char *argv[]) {
                 last_info_request_time = current_time;
             }
 
-            if (std::chrono::duration_cast<std::chrono::seconds>(current_time - last_sent_time) >= 10s && done) {
+            if (std::chrono::duration_cast<std::chrono::seconds>(current_time - last_sent_time) >= 18s && done) {
                 printf("Sending target change instruction to drone\n");
                 strcpy(buf, "send_move");
                 send(sa, buf, strlen(buf) + 1, 0);
@@ -134,9 +162,14 @@ int main(int argc, char *argv[]) {
                 done = false;
             }
 
-            if ((target.target.x_coordinate - 10) < drone.Drone_position.x_coordinate && drone.Drone_position.x_coordinate < (target.target.x_coordinate + 10) &&
-                (target.target.y_coordinate - 10) < drone.Drone_position.y_coordinate && drone.Drone_position.y_coordinate < (target.target.y_coordinate + 10) &&
-                (target.target.z_coordinate - 10) < drone.Drone_position.z_coordinate && drone.Drone_position.z_coordinate < (target.target.z_coordinate + 10))
+            float error = 0.1;
+
+            if ((target.target.x_coordinate - 5 * abs(drone.Drone_speed.x_coordinate) - error) < drone.Drone_position.x_coordinate && 
+                drone.Drone_position.x_coordinate < (target.target.x_coordinate + 5 * abs(drone.Drone_speed.x_coordinate) + error) &&
+                (target.target.y_coordinate - 5 * abs(drone.Drone_speed.y_coordinate) - error) < drone.Drone_position.y_coordinate && 
+                drone.Drone_position.y_coordinate < (target.target.y_coordinate + 5 * abs(drone.Drone_speed.y_coordinate) + error) &&
+                (target.target.z_coordinate - 5 * abs(drone.Drone_speed.z_coordinate) - error) < drone.Drone_position.z_coordinate &&
+                drone.Drone_position.z_coordinate < (target.target.z_coordinate + 5 * abs(drone.Drone_speed.z_coordinate) + error))
             {
                 printf("Target achieved.\n");
                 strcpy(buf, "send_disconnect");
